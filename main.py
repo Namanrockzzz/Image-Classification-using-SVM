@@ -83,8 +83,80 @@ def classWiseData(x,y):
     
     return data
 
+# Function for one vs one method of SVM multiclass classifictaion
+def getDataPairForSVM(d1, d2):
+    """Combines data of two classes into a single matrix"""
+    
+    l1,l2 = d1.shape[0], d2.shape[0]
+    
+    samples = l1+l2
+    features = d1.shape[1]
+    
+    data_pair = np.zeros((samples, features))
+    data_labels = np.zeros((samples,))
+    
+    data_pair[:l1,:] = d1
+    data_pair[l1:,:] = d2
 
+    data_labels[:l1] = -1
+    data_labels[l1:] = 1
+    
+    return data_pair, data_labels
+
+# Function to train nC2 SVMs
+def trainSVMs(x,y):
+    
+    svm_classifiers = {}
+    for i in range(CLASSES):
+        svm_classifiers[i] = {}
+        for j in range(i+1, CLASSES):
+            xpair, ypair = getDataPairForSVM(data[i],data[j])
+            wts,b,loss = mySVM.fit(xpair, ypair, learning_rate=0.00001, maxItr=1000)
+            svm_classifiers[i][j] = (wts,b)
             
+            
+            #plt.plot(loss)
+            #plt.show()
+            
+    return svm_classifiers
+
+# Compare data only between a pair
+def binaryPredict(x,w,b):
+    z = np.dot(x,w.T)+b
+    if z>=0:
+        return 1
+    else:
+        return -1
+
+# Predict Function
+def predict(x):
+    
+    count = np.zeros((CLASSES,))
+    
+    for i in range(CLASSES):
+        for j in range(i+1, CLASSES):
+            w,b = svm_classifiers[i][j]
+            # Take a majority prediction form each of the classifiers
+            z = binaryPredict(x,w,b)
+            if z==1:
+                count[j] += 1
+            else:
+                count[i] += 1
+        
+    final_prediction = np.argmax(count)
+    # print(count)
+    return final_prediction
+
+# Calculate accuracy
+def accuracy(x,y):
+    
+    count=0
+    for i in range(x.shape[0]):
+        prediction = predict(x[i])
+        if prediction==y[i]:
+            count+=1
+    return count/x.shape[0]
+    
 
 # Dataset Preparation
 p = Path("Dataset/images/")
@@ -128,4 +200,18 @@ CLASSES = len(np.unique(labels))
 
 # Creating dictionary mapping class to image_data
 data = classWiseData(image_data, labels)
+
+# Train the model
+mySVM = SVM()
+xp, yp = getDataPairForSVM(data[0], data[1])
+w,b,loss = mySVM.fit(xp,yp, learning_rate=0.00001, maxItr=1000)
+#print(loss)
+#plt.plot(loss)
+#plt.show()
+
+# Find nC2 svm classifiers
+svm_classifiers= trainSVMs(image_data, labels)
+
+# Accuracy
+print(accuracy(image_data, labels))
 
